@@ -1,0 +1,15 @@
+using System.Text.Json.Serialization;
+
+namespace Booking.Core.Entities;
+
+public class AvailabilitySlot
+{
+    public int Id { get; set; }
+    public int ProfessionalId { get; set; }
+    public DayOfWeek DayOfWeek { get; set; }
+    public TimeSpan StartTime { get; set; }
+    public TimeSpan EndTime { get; set; }
+    public bool IsActive { get; set; } = true;
+
+    [JsonIgnore] public Professional Professional { get; set; } = null!;
+}
