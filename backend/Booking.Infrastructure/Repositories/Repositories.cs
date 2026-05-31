@@ -9,6 +9,9 @@ public class UserRepository : IUserRepository
     private readonly Data.AppDbContext _db;
     public UserRepository(Data.AppDbContext db) => _db = db;
 
+    public async Task<List<User>> GetAllAsync() =>
+        await _db.Users.ToListAsync();
+
     public async Task<User?> GetByIdAsync(int id) =>
         await _db.Users.FindAsync(id);
 
@@ -43,7 +46,13 @@ public class ProfessionalRepository : IProfessionalRepository
         await _db.Professionals.Include(p => p.Services).FirstOrDefaultAsync(p => p.Slug == slug);
 
     public async Task<Professional?> GetByIdAsync(int id) =>
-        await _db.Professionals.Include(p => p.Services).FirstOrDefaultAsync(p => p.Id == id);
+        await _db.Professionals.Include(p => p.User).Include(p => p.Services).FirstOrDefaultAsync(p => p.Id == id);
+
+    public async Task<List<Professional>> GetAllAdminAsync() =>
+        await _db.Professionals.Include(p => p.User).Include(p => p.Services).ToListAsync();
+
+    public async Task<Professional?> GetByUserIdAsync(int userId) =>
+        await _db.Professionals.Include(p => p.User).FirstOrDefaultAsync(p => p.UserId == userId);
 
     public async Task<Professional> CreateAsync(Professional professional)
     {
@@ -95,6 +104,12 @@ public class AppointmentRepository : IAppointmentRepository
 {
     private readonly Data.AppDbContext _db;
     public AppointmentRepository(Data.AppDbContext db) => _db = db;
+
+    public async Task<List<Appointment>> GetAllAsync() =>
+        await _db.Appointments
+            .Include(a => a.Service)
+            .Include(a => a.Professional)
+            .ToListAsync();
 
     public async Task<Appointment?> GetByIdAsync(int id) =>
         await _db.Appointments
@@ -158,18 +173,21 @@ public class AvailabilityRepository : IAvailabilityRepository
     private readonly Data.AppDbContext _db;
     public AvailabilityRepository(Data.AppDbContext db) => _db = db;
 
-    public async Task<List<AvailabilitySlot>> GetSlotsByProfessionalIdAsync(int professionalId) =>
-        await _db.AvailabilitySlots
+    public async Task<List<AvailabilitySlot>> GetSlotsByProfessionalIdAsync(int professionalId)
+    {
+        var slots = await _db.AvailabilitySlots
             .Where(a => a.ProfessionalId == professionalId && a.IsActive)
-            .OrderBy(a => a.DayOfWeek).ThenBy(a => a.StartTime)
             .ToListAsync();
+        return slots.OrderBy(a => a.DayOfWeek).ThenBy(a => a.StartTime).ToList();
+    }
 
     public async Task<List<AvailabilityOverride>> GetOverridesByProfessionalIdAsync(int professionalId, DateTime? from = null)
     {
         var query = _db.AvailabilityOverrides.Where(a => a.ProfessionalId == professionalId);
         if (from.HasValue)
             query = query.Where(a => a.Date >= from.Value.Date);
-        return await query.OrderBy(a => a.Date).ThenBy(a => a.StartTime).ToListAsync();
+        var overrides = await query.ToListAsync();
+        return overrides.OrderBy(a => a.Date).ThenBy(a => a.StartTime).ToList();
     }
 
     public async Task SetSlotsAsync(int professionalId, List<AvailabilitySlot> slots)

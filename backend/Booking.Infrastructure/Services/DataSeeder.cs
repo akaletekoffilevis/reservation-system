@@ -16,9 +16,9 @@ public static class DataSeeder
         // Admin user
         var admin = new User
         {
-            Email = "admin@booking.app",
+            Email = "koffilevis21@gmail.com",
             PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin123"),
-            DisplayName = "Admin",
+            DisplayName = "Admin Booking",
             Role = UserRole.Admin,
             Timezone = "Europe/Paris",
             EmailConfirmed = true
@@ -54,6 +54,17 @@ public static class DataSeeder
             new[] { (1, "09:00", "17:00"), (2, "09:00", "17:00"), (3, "09:00", "17:00"), (4, "09:00", "17:00"), (5, "09:00", "16:00") },
         };
 
+        // Categories
+        var categories = new[]
+        {
+            new Category { Name = "Coiffure & Barbier", Icon = "💇", DisplayOrder = 1 },
+            new Category { Name = "Santé & Bien-être", Icon = "🧘", DisplayOrder = 2 },
+            new Category { Name = "Sport & Fitness", Icon = "🏋️", DisplayOrder = 3 },
+            new Category { Name = "Médecine", Icon = "🩺", DisplayOrder = 4 },
+        };
+        db.Categories.AddRange(categories);
+        await db.SaveChangesAsync();
+
         for (int i = 0; i < pros.Length; i++)
         {
             var (name, business, desc, city, email, phone) = pros[i];
@@ -71,6 +82,7 @@ public static class DataSeeder
             db.Users.Add(user);
             await db.SaveChangesAsync();
 
+            var catId = i switch { 0 => 1, 1 => 2, 2 => 2, 3 => 3, _ => 4 };
             var slug = business.ToLower().Replace(" ", "-") + "-" + (1000 + i);
             var pro = new Professional
             {
@@ -81,6 +93,7 @@ public static class DataSeeder
                 City = city,
                 Phone = phone,
                 Address = $"1 rue {name.Split(' ')[0]}, {city}",
+                CategoryId = catId,
                 IsActive = true
             };
             db.Professionals.Add(pro);

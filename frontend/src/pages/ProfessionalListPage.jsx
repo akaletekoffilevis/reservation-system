@@ -1,92 +1,89 @@
 import { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import api from '../services/api';
-import { Card, Badge, EmptyState } from '../components/ui/Elements';
+import { Button, Card, EmptyState } from '../components/ui/Elements';
 import { PageLoader } from '../components/ui/Loading';
 
 export default function ProfessionalListPage() {
   const [professionals, setProfessionals] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [search, setSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [searchParams] = useSearchParams();
-  const search = searchParams.get('search') || '';
+
+  useEffect(() => {
+    api.get('/catalogue/categories').then(({ data }) => setCategories(data)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     setLoading(true);
-    api.get(`/professionals?search=${search}`)
-      .then(({ data }) => setProfessionals(data))
-      .catch(() => setProfessionals([]))
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    if (selectedCategory) params.append('categoryId', selectedCategory);
+    api.get(`/professionals?${params}`).then(({ data }) => setProfessionals(data)).catch(() => setProfessionals([]))
       .finally(() => setLoading(false));
-  }, [search]);
-
-  if (loading) return <PageLoader />;
+  }, [search, selectedCategory]);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">Professionnels</h1>
-        {search ? (
-          <p className="text-gray-500">Résultats pour "{search}" — {professionals.length} trouvé(s)</p>
-        ) : (
-          <p className="text-gray-500">Découvrez tous nos professionnels partenaires</p>
-        )}
-      </div>
-
-      {professionals.length === 0 ? (
-        <EmptyState
-          title="Aucun professionnel trouvé"
-          description={`Nous n'avons trouvé aucun professionnel correspondant à "${search}". Essayez une autre recherche.`}
-          action={
-            <Link to="/professionals" className="inline-flex items-center px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700">
-              Voir tous les professionnels
-            </Link>
-          }
-        />
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {professionals.map((p) => (
-            <Link key={p.id} to={`/professionals/${p.slug}`}>
-              <Card className="p-6 h-full group">
-                <div className="flex items-start gap-4 mb-4">
-                  <div className="w-12 h-12 bg-brand-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <span className="text-lg font-bold text-brand-600">
-                      {p.businessName.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h2 className="text-lg font-semibold text-gray-900 group-hover:text-brand-600 transition-colors truncate">
-                      {p.businessName}
-                    </h2>
-                    {p.city && (
-                      <p className="text-sm text-gray-500 flex items-center gap-1">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        {p.city}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                {p.description && (
-                  <p className="text-sm text-gray-600 line-clamp-2 mb-4">{p.description}</p>
-                )}
-                {p.services?.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {p.services.slice(0, 3).map((s) => (
-                      <Badge key={s.id} variant="primary">
-                        {s.name} — {s.price}€
-                      </Badge>
-                    ))}
-                    {p.services.length > 3 && (
-                      <Badge>+{p.services.length - 3}</Badge>
-                    )}
-                  </div>
-                )}
-              </Card>
-            </Link>
-          ))}
+    <div className="max-w-6xl mx-auto px-4 py-8 animate-fade-in">
+      <div className="flex gap-6">
+        <aside className="w-56 shrink-0">
+          <h3 className="font-semibold text-sm text-gray-500 mb-3 uppercase tracking-wide">Catégories</h3>
+          <div className="space-y-1">
+            <button onClick={() => setSelectedCategory(null)}
+              className={`w-full text-left px-3 py-2 rounded-lg text-sm transition ${!selectedCategory ? 'bg-blue-50 text-blue-700 font-medium' : 'hover:bg-gray-100'}`}>
+              Tous
+            </button>
+            {categories.map(cat => (
+              <button key={cat.id} onClick={() => setSelectedCategory(cat.id)}
+                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition ${selectedCategory === cat.id ? 'bg-blue-50 text-blue-700 font-medium' : 'hover:bg-gray-100'}`}>
+                {cat.icon} {cat.name}
+                <span className="text-xs text-gray-400 ml-1">({cat.professionalCount})</span>
+              </button>
+            ))}
+          </div>
+        </aside>
+        <div className="flex-1">
+          <div className="flex gap-3 mb-6">
+            <input className="flex-1 border rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-500"
+              placeholder="Rechercher un professionnel ou service..." value={search}
+              onChange={(e) => setSearch(e.target.value)} />
+          </div>
+          {loading ? (
+            <PageLoader />
+          ) : professionals.length === 0 ? (
+            <EmptyState
+              icon={
+                <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              }
+              title="Aucun professionnel trouvé"
+              description={search ? "Essayez de modifier votre recherche." : "Aucun professionnel disponible dans cette catégorie pour le moment."}
+            />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {professionals.map(pro => (
+                <Link key={pro.id} to={`/professionals/${pro.slug}`} className="block">
+                  <Card className="p-5 hover:shadow-md transition cursor-pointer">
+                    <h3 className="font-semibold text-lg">{pro.businessName}</h3>
+                    {pro.city && <p className="text-sm text-gray-500 mt-1">{pro.city}</p>}
+                    {pro.description && <p className="text-sm text-gray-600 mt-2 line-clamp-2">{pro.description}</p>}
+                    <div className="flex gap-2 mt-3 flex-wrap">
+                      {pro.services?.slice(0, 3).map(s => (
+                        <span key={s.id} className="text-xs bg-gray-100 px-2 py-1 rounded-full">{s.name}</span>
+                      ))}
+                      {(pro.services?.length || 0) > 3 && (
+                        <span className="text-xs text-gray-400 px-2 py-1">+{pro.services.length - 3}</span>
+                      )}
+                    </div>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

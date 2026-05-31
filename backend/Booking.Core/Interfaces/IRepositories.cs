@@ -1,9 +1,11 @@
 using Booking.Core.Entities;
+using Booking.Core.Enums;
 
 namespace Booking.Core.Interfaces;
 
 public interface IUserRepository
 {
+    Task<List<User>> GetAllAsync();
     Task<User?> GetByIdAsync(int id);
     Task<User?> GetByEmailAsync(string email);
     Task<User> CreateAsync(User user);
@@ -13,7 +15,9 @@ public interface IUserRepository
 public interface IProfessionalRepository
 {
     Task<List<Professional>> GetAllAsync(string? search = null);
+    Task<List<Professional>> GetAllAdminAsync();
     Task<Professional?> GetBySlugAsync(string slug);
+    Task<Professional?> GetByUserIdAsync(int userId);
     Task<Professional?> GetByIdAsync(int id);
     Task<Professional> CreateAsync(Professional professional);
     Task UpdateAsync(Professional professional);
@@ -30,6 +34,7 @@ public interface IServiceRepository
 
 public interface IAppointmentRepository
 {
+    Task<List<Appointment>> GetAllAsync();
     Task<Appointment?> GetByIdAsync(int id);
     Task<Appointment?> GetByTokenAsync(string token);
     Task<List<Appointment>> GetByProfessionalIdAsync(int professionalId, DateTime? date = null);
@@ -53,4 +58,41 @@ public interface IRefreshTokenRepository
     Task<RefreshToken?> GetByTokenAsync(string token);
     Task CreateAsync(RefreshToken refreshToken);
     Task RevokeAsync(string token);
+}
+
+public interface IConversationRepository : IRepository<Conversation>
+{
+    Task<List<Conversation>> GetProfessionalConversationsAsync(int professionalId);
+    Task<List<Conversation>> GetClientConversationsAsync(string clientEmail);
+    Task<Conversation?> GetByParticipantsAsync(int professionalId, string clientEmail);
+}
+
+public interface IChatMessageRepository : IRepository<ChatMessage>
+{
+    Task<List<ChatMessage>> GetConversationMessagesAsync(int conversationId);
+    Task MarkConversationAsReadAsync(int conversationId, ChatMessageSender reader);
+}
+
+public interface IReviewRepository : IRepository<Review>
+{
+    Task<List<Review>> GetProfessionalReviewsAsync(int professionalId);
+    Task<List<Review>> GetPendingReviewsAsync();
+    Task<double> GetAverageRatingAsync(int professionalId);
+    Task<int> GetReviewsCountAsync(int professionalId);
+}
+
+public interface ICategoryRepository : IRepository<Category>
+{
+    Task<List<Category>> GetAllWithCountsAsync();
+}
+
+public interface ITimeOffRepository : IRepository<TimeOff>
+{
+    Task<List<TimeOff>> GetProfessionalTimeOffsAsync(int professionalId);
+    Task<bool> HasOverlapAsync(int professionalId, DateTime start, DateTime end);
+}
+
+public interface IRecurringScheduleRepository : IRepository<RecurringSchedule>
+{
+    Task<List<RecurringSchedule>> GetProfessionalSchedulesAsync(int professionalId);
 }

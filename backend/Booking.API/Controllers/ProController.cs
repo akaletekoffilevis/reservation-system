@@ -28,12 +28,12 @@ public class ProController : ControllerBase
         _avail = avail;
     }
 
-    private async Task<int> GetProfessionalIdAsync()
-    {
-        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-        var pro = await _pros.GetByIdAsync(userId);
-        return pro?.Id ?? throw new InvalidOperationException("Professional profile not found");
-    }
+private async Task<int> GetProfessionalIdAsync()
+{
+    var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+    var pro = await _pros.GetByUserIdAsync(userId);
+    return pro?.Id ?? throw new InvalidOperationException("Professional profile not found");
+}
 
     [HttpGet("appointments")]
     public async Task<ActionResult> GetAppointments([FromQuery] DateTime? date)

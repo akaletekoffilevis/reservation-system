@@ -12,9 +12,12 @@ public class Professional
     public string? Address { get; set; }
     public string? City { get; set; }
     public string? Phone { get; set; }
+    public int? CategoryId { get; set; }
     public bool IsActive { get; set; } = true;
 
+    [JsonIgnore] public Category? Category { get; set; }
     [JsonIgnore] public User User { get; set; } = null!;
+    [JsonIgnore] public ICollection<Review> Reviews { get; set; } = new List<Review>();
     [JsonIgnore] public ICollection<Service> Services { get; set; } = new List<Service>();
     [JsonIgnore] public ICollection<AvailabilitySlot> AvailabilitySlots { get; set; } = new List<AvailabilitySlot>();
     [JsonIgnore] public ICollection<AvailabilityOverride> AvailabilityOverrides { get; set; } = new List<AvailabilityOverride>();

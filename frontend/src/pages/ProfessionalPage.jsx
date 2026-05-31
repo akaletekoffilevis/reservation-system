@@ -1,255 +1,241 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
-import { Card, Button, Badge, Input } from '../components/ui/Elements';
+import { Button, Card, Input } from '../components/ui/Elements';
 import { PageLoader } from '../components/ui/Loading';
+import { useToast } from '../hooks/useToast';
 
 export default function ProfessionalPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
   const [pro, setPro] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [step, setStep] = useState('services'); // services -> slots -> form -> done
+  const [reviews, setReviews] = useState([]);
+  const [step, setStep] = useState(1);
   const [selectedService, setSelectedService] = useState(null);
-  const [date, setDate] = useState('');
-  const [availableSlots, setAvailableSlots] = useState([]);
   const [selectedSlot, setSelectedSlot] = useState(null);
-  const [form, setForm] = useState({ clientName: '', clientEmail: '', clientPhone: '', notes: '' });
-  const [bookingLoading, setBookingLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [availableSlots, setAvailableSlots] = useState([]);
+  const [form, setForm] = useState({ clientName: '', clientEmail: '', clientPhone: '' });
+  const [booking, setBooking] = useState(false);
+  const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '', appointmentId: '' });
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
-    api.get(`/professionals/${slug}`)
-      .then(({ data }) => setPro(data))
-      .catch(() => navigate('/professionals'))
-      .finally(() => setLoading(false));
-  }, [slug, navigate]);
+    api.get(`/professionals/${slug}`).then(({ data }) => setPro(data));
+    api.get(`/catalogue/professionals/${slug}/reviews`).then(({ data }) => setReviews(data)).catch(() => {});
+  }, [slug]);
 
-  const handleSelectService = (service) => {
+  const selectService = (service) => {
     setSelectedService(service);
-    setStep('slots');
-    setDate('');
-    setSelectedSlot(null);
-    setAvailableSlots([]);
-  };
-
-  const loadSlots = async (d) => {
-    if (!d || !selectedService) return;
-    setDate(d);
-    setSelectedSlot(null);
-    setError('');
-
-    try {
-      const { data } = await api.get(`/professionals/${pro.id}/availability`);
-      const dayOfWeek = new Date(d + 'T12:00:00').getDay();
-      const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-
-      const daySlots = (data.slots || []).filter((s) => s.dayOfWeek === adjustedDay);
-      const overrides = (data.overrides || []).filter(
-        (o) => new Date(o.date).toISOString().split('T')[0] === d
-      );
-
+    setStep(2);
+    api.get(`/professionals/${pro.id}/availability`).then(({ data }) => {
       const slots = [];
-      for (const slot of daySlots) {
-        const [sh, sm] = slot.startTime.split(':').map(Number);
-        const [eh, em] = slot.endTime.split(':').map(Number);
-        let start = sh * 60 + sm;
-        const end = eh * 60 + em;
-        const dur = selectedService.durationMinutes;
-
-        while (start + dur <= end) {
-          const h = Math.floor(start / 60);
-          const m = start % 60;
-          const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-
-          const isOverridden = overrides.some((o) => {
-            const [oh, om] = o.startTime.split(':').map(Number);
-            const [oeh, oem] = o.endTime.split(':').map(Number);
-            const oStart = oh * 60 + om;
-            const oEnd = oeh * 60 + oem;
-            return start >= oStart && start < oEnd;
-          });
-
-          if (!isOverridden) slots.push(timeStr);
-          start += dur;
+      for (const slot of data.slots || []) {
+        for (let d = 1; d <= 7; d++) {
+          const date = new Date();
+          date.setDate(date.getDate() + d);
+          if (date.getDay() === slot.dayOfWeek) {
+            slots.push({
+              date: date.toISOString().split('T')[0],
+              startTime: slot.startTime,
+              endTime: slot.endTime,
+            });
+          }
         }
       }
       setAvailableSlots(slots);
-    } catch {
-      setError('Erreur lors du chargement des disponibilités');
-    }
+    });
   };
 
-  const handleBook = async (e) => {
-    e.preventDefault();
-    if (!selectedService || !selectedSlot || !date) return;
-    setBookingLoading(true);
-    setError('');
-
+  const book = async () => {
+    if (!selectedService || !selectedSlot || !form.clientName || !form.clientEmail) return;
+    setBooking(true);
     try {
-      const startUtc = new Date(`${date}T${selectedSlot}:00`).toISOString();
+      const start = new Date(`${selectedSlot.date}T${selectedSlot.startTime}`);
+      const end = new Date(start.getTime() + selectedService.durationMinutes * 60000);
       const { data } = await api.post('/appointments', {
-        professionalId: pro.id,
-        serviceId: selectedService.id,
-        clientName: form.clientName,
-        clientEmail: form.clientEmail,
-        clientPhone: form.clientPhone,
-        startUtc,
-        notes: form.notes,
+        professionalId: pro.id, serviceId: selectedService.id,
+        clientName: form.clientName, clientEmail: form.clientEmail,
+        clientPhone: form.clientPhone, startUtc: start.toISOString(), endUtc: end.toISOString(),
       });
-      navigate(`/booking-confirmed?token=${data.token}`);
+      navigate(`/booking-success/${data.token}`);
     } catch (err) {
-      setError(err.response?.data?.message || 'Erreur lors de la réservation');
+      toast.error(err.response?.data?.message || 'Erreur de réservation');
     } finally {
-      setBookingLoading(false);
+      setBooking(false);
     }
   };
 
-  if (loading) return <PageLoader />;
-  if (!pro) return null;
+  const submitReview = async () => {
+    if (!reviewForm.comment.trim()) { toast.error('Veuillez écrire un commentaire.'); return; }
+    setSubmittingReview(true);
+    try {
+      const { data } = await api.post('/catalogue/reviews', {
+        professionalId: pro.id,
+        rating: reviewForm.rating, comment: reviewForm.comment,
+        clientName: form.clientName || 'Anonyme',
+        clientEmail: form.clientEmail || undefined,
+      });
+      setReviewSubmitted(true);
+      setReviews([data, ...reviews]);
+      toast.success('Avis envoyé ! En attente de modération.');
+    } catch (err) {
+      toast.error('Erreur lors de l\'envoi de l\'avis');
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
+  if (!pro) return <PageLoader />;
+
+  const averageRating = reviews.length > 0 ? Math.round(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length) : 0;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-start gap-6 mb-10">
-        <div className="w-20 h-20 bg-brand-100 rounded-2xl flex items-center justify-center flex-shrink-0">
-          <span className="text-3xl font-bold text-brand-600">{pro.businessName.charAt(0)}</span>
-        </div>
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">{pro.businessName}</h1>
-          {pro.city && <p className="text-gray-500 flex items-center gap-1"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>{pro.city}</p>}
-          {pro.description && <p className="text-gray-600 mt-2 max-w-2xl">{pro.description}</p>}
-        </div>
-      </div>
-
-      {/* Progress steps */}
-      <div className="flex items-center gap-2 mb-8 text-sm">
-        {['services', 'slots', 'form'].map((s, i) => (
-          <div key={s} className="flex items-center gap-2">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-              step === s ? 'bg-brand-600 text-white' :
-              ['services', 'slots', 'form'].indexOf(step) > i ? 'bg-green-100 text-green-700' :
-              'bg-gray-100 text-gray-400'
-            }`}>
-              {['services', 'slots', 'form'].indexOf(step) > i ? '✓' : i + 1}
-            </div>
-            <span className={`hidden sm:inline ${step === s ? 'text-gray-900 font-medium' : 'text-gray-400'}`}>
-              {s === 'services' ? 'Service' : s === 'slots' ? 'Créneau' : 'Infos'}
-            </span>
-            {i < 2 && <div className="w-8 h-px bg-gray-200" />}
+    <div className="max-w-4xl mx-auto px-4 py-8 animate-fade-in">
+      <Card className="p-6 mb-6">
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-3xl font-bold">{pro.businessName}</h1>
+            {pro.city && <p className="text-gray-500 mt-1">{pro.city}</p>}
+            {pro.description && <p className="text-gray-700 mt-3">{pro.description}</p>}
           </div>
-        ))}
-      </div>
+          <Button variant="secondary" onClick={() => navigate(`/chat?pro=${pro.id}&name=${form.clientName}&email=${form.clientEmail}`)}>
+            Contacter
+          </Button>
+        </div>
+        {reviews.length > 0 && (
+          <div className="flex items-center gap-2 mt-3">
+            <div className="flex text-amber-400">
+              {Array.from({ length: 5 }, (_, i) => <span key={i}>{i < averageRating ? '★' : '☆'}</span>)}
+            </div>
+            <span className="text-sm text-gray-500">({reviews.length} avis)</span>
+          </div>
+        )}
+      </Card>
 
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>
-      )}
+      <Card className="overflow-hidden mb-6">
+        <div className="flex border-b">
+          {['Service', 'Créneau', 'Infos'].map((s, i) => (
+            <div key={s} className={`flex-1 p-3 text-center text-sm font-medium ${step === i + 1 ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-gray-400'}`}>
+              {s}
+            </div>
+          ))}
+        </div>
 
-      {/* Step 1: Services */}
-      {step === 'services' && (
-        <div className="animate-slide-up">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">Choisissez un service</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {pro.services?.map((s) => (
-              <Card key={s.id} className="p-5 cursor-pointer border-2 hover:border-brand-300 transition-all" onClick={() => handleSelectService(s)}>
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-semibold text-gray-900">{s.name}</h3>
-                  <span className="text-lg font-bold text-brand-600">{s.price}€</span>
+        <div className="p-6">
+          {step === 1 && (
+            <div className="space-y-3">
+              {(pro.services || []).filter(s => s.isActive).map(service => (
+                <button key={service.id} onClick={() => selectService(service)}
+                  className={`w-full text-left p-4 rounded-xl border transition ${selectedService?.id === service.id ? 'border-blue-500 bg-blue-50' : 'hover:border-gray-300'}`}>
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium">{service.name}</span>
+                    <span className="text-blue-600 font-semibold">{service.price}€</span>
+                  </div>
+                  <span className="text-sm text-gray-500">{service.durationMinutes} min</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {step === 2 && (
+            <div>
+              <p className="text-sm text-gray-500 mb-4">{selectedService?.name} — Sélectionnez un créneau</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-64 overflow-y-auto">
+                {availableSlots.map((slot, i) => (
+                  <button key={i} onClick={() => setSelectedSlot(slot)}
+                    className={`p-3 rounded-xl border text-sm transition ${selectedSlot === slot ? 'border-blue-500 bg-blue-50' : 'hover:border-gray-300'}`}>
+                    {new Date(slot.date).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })}
+                    <br />
+                    {slot.startTime.substring(0, 5)}
+                  </button>
+                ))}
+              </div>
+              {selectedSlot && (
+                <Button variant="primary" className="w-full mt-4" onClick={() => setStep(3)}>
+                  Continuer
+                </Button>
+              )}
+            </div>
+          )}
+
+          {step === 3 && (
+            <div className="space-y-4">
+              <div className="p-3 bg-gray-50 rounded-xl text-sm">
+                <p><strong>Service :</strong> {selectedService?.name}</p>
+                <p><strong>Créneau :</strong> {selectedSlot && new Date(selectedSlot.date).toLocaleDateString('fr-FR')} à {selectedSlot?.startTime?.substring(0, 5)}</p>
+              </div>
+              <Input placeholder="Nom *" value={form.clientName} onChange={e => setForm({ ...form, clientName: e.target.value })} />
+              <Input placeholder="Email *" type="email" value={form.clientEmail} onChange={e => setForm({ ...form, clientEmail: e.target.value })} />
+              <Input placeholder="Téléphone" type="tel" value={form.clientPhone} onChange={e => setForm({ ...form, clientPhone: e.target.value })} />
+              <Button variant="primary" className="w-full" onClick={book} loading={booking}>
+                {booking ? 'Réservation...' : 'Confirmer la réservation'}
+              </Button>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {reviews.length > 0 && (
+        <Card className="p-6">
+          <h2 className="text-lg font-bold mb-4">Avis clients ({reviews.length})</h2>
+          <div className="space-y-4">
+            {reviews.map(review => (
+              <div key={review.id} className="border-b pb-4 last:border-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-medium text-sm">{review.clientName}</span>
+                  {review.isVerified && <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Vérifié</span>}
                 </div>
-                {s.description && <p className="text-sm text-gray-500 mb-3">{s.description}</p>}
-                <div className="flex items-center gap-1 text-sm text-gray-400">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  {s.durationMinutes} min
+                <div className="flex text-amber-400 text-sm mb-1">
+                  {Array.from({ length: 5 }, (_, i) => <span key={i}>{i < review.rating ? '★' : '☆'}</span>)}
                 </div>
-              </Card>
+                {review.comment && <p className="text-sm text-gray-700">{review.comment}</p>}
+              </div>
             ))}
           </div>
-        </div>
+        </Card>
       )}
-
-      {/* Step 2: Date & Time */}
-      {step === 'slots' && (
-        <div className="animate-slide-up">
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Choisissez une date</h2>
-          <p className="text-gray-500 mb-6">{selectedService?.name} — {selectedService?.durationMinutes}min</p>
-
-          <input type="date" value={date}
-            onChange={(e) => loadSlots(e.target.value)}
-            min={new Date().toISOString().split('T')[0]}
-            className="w-full sm:w-auto px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-          />
-
-          {date && availableSlots.length > 0 && (
-            <div className="mt-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Créneaux disponibles</h3>
-              <div className="flex flex-wrap gap-3">
-                {availableSlots.map((t) => (
-                  <button key={t} onClick={() => setSelectedSlot(t)}
-                    className={`px-5 py-3 rounded-xl border font-medium transition-all ${
-                      selectedSlot === t
-                        ? 'bg-brand-600 text-white border-brand-600 shadow-md'
-                        : 'bg-white text-gray-700 border-gray-200 hover:border-brand-300 hover:shadow'
-                    }`}>
-                    {t}
+      {!reviewSubmitted && (
+        <Card className="p-6">
+          <h2 className="text-lg font-bold mb-4">Laisser un avis</h2>
+          <div className="space-y-3">
+            <div>
+              <p className="text-sm text-gray-600 mb-2">Note</p>
+              <div className="flex gap-1 text-2xl">
+                {[1,2,3,4,5].map(r => (
+                  <button key={r} onClick={() => setReviewForm({...reviewForm, rating: r})}
+                    className={`transition ${r <= reviewForm.rating ? 'text-amber-400' : 'text-gray-300'} hover:text-amber-400`}>
+                    ★
                   </button>
                 ))}
               </div>
             </div>
-          )}
-
-          {date && availableSlots.length === 0 && (
-            <div className="mt-6 p-8 text-center bg-gray-50 rounded-xl border border-dashed border-gray-300">
-              <p className="text-gray-500">Aucun créneau disponible pour cette date.</p>
-              <p className="text-sm text-gray-400 mt-1">Essayez une autre date.</p>
-            </div>
-          )}
-
-          <div className="flex gap-3 mt-8">
-            <Button variant="secondary" onClick={() => { setStep('services'); setSelectedService(null); }}>
-              Retour
+            <textarea className="w-full border rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-brand-500"
+              rows={3} placeholder="Partagez votre expérience..." value={reviewForm.comment}
+              onChange={(e) => setReviewForm({...reviewForm, comment: e.target.value})} />
+            <Button variant="primary" onClick={submitReview} loading={submittingReview}>
+              Envoyer mon avis
             </Button>
-            {selectedSlot && (
-              <Button onClick={() => setStep('form')}>
-                Continuer
-              </Button>
-            )}
           </div>
-        </div>
+        </Card>
       )}
-
-      {/* Step 3: Client info */}
-      {step === 'form' && (
-        <div className="animate-slide-up max-w-lg">
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Vos informations</h2>
-          <p className="text-gray-500 mb-6">
-            {selectedService?.name} — {new Date(`${date}T${selectedSlot}`).toLocaleDateString('fr-FR', {
-              weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'
-            })}
-          </p>
-
-          <form onSubmit={handleBook} className="space-y-4">
-            <Input label="Nom" placeholder="Votre nom" required
-              value={form.clientName} onChange={(e) => setForm({ ...form, clientName: e.target.value })} />
-            <Input label="Email" type="email" placeholder="vous@exemple.fr" required
-              value={form.clientEmail} onChange={(e) => setForm({ ...form, clientEmail: e.target.value })} />
-            <Input label="Téléphone" type="tel" placeholder="+33 6 12 34 56 78"
-              value={form.clientPhone} onChange={(e) => setForm({ ...form, clientPhone: e.target.value })} />
-            <div className="space-y-1">
-              <label className="block text-sm font-medium text-gray-700">Notes (optionnel)</label>
-              <textarea placeholder="Informations supplémentaires..."
-                value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500" rows={3} />
-            </div>
-
-            <div className="flex gap-3 pt-2">
-              <Button variant="secondary" onClick={() => setStep('slots')}>Retour</Button>
-              <Button type="submit" loading={bookingLoading} className="flex-1">
-                Confirmer la réservation
-              </Button>
-            </div>
-          </form>
+      {reviewSubmitted && (
+        <Card className="p-6 text-center">
+          <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+            <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <p className="text-green-700 font-medium">Merci ! Votre avis a été soumis et sera visible après modération.</p>
+        </Card>
+      )}
+      {toast.message && (
+        <div className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-lg border shadow-lg animate-slide-up ${
+          toast.type === 'error' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-green-50 border-green-200 text-green-800'
+        }`}>
+          <span className="text-sm font-medium">{toast.message}</span>
+          <button onClick={toast.clear} className="text-current opacity-60 hover:opacity-100">&times;</button>
         </div>
       )}
     </div>
