@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Button, Input, Card } from '../components/ui/Elements';
+import { Card, Button, Input } from '../components/ui/Elements';
 
 export default function RegisterPage() {
   const [form, setForm] = useState({ email: '', password: '', displayName: '', phone: '', isProfessional: false });
@@ -34,7 +34,7 @@ export default function RegisterPage() {
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-gray-900">Créer un compte</h1>
-          <p className="text-gray-500 mt-1">Rejoignez Booking gratuitement</p>
+          <p className="text-gray-500 mt-1">Rejoignez Planity gratuitement</p>
         </div>
 
         <Card className="p-8">

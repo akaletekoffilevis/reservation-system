@@ -6,6 +6,7 @@ using Booking.Infrastructure.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using Scalar.AspNetCore;
 using Booking.API.Hubs;
 
@@ -26,8 +27,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "BookingAPI",
-            ValidAudience = builder.Configuration["Jwt:Audience"] ?? "BookingApp",
+            ValidIssuer = builder.Configuration["Jwt:Issuer"] ?? "PlanityAPI",
+            ValidAudience = builder.Configuration["Jwt:Audience"] ?? "PlanityApp",
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
         };
     });
@@ -57,6 +58,7 @@ builder.Services.AddScoped<ITimeOffService, TimeOffService>();
 builder.Services.AddScoped<IRecurringScheduleService, RecurringScheduleService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<ISmsService, SmsService>();
+builder.Services.AddHostedService<ReminderBackgroundService>();
 
 // CORS (for frontend)
 builder.Services.AddCors(options =>
@@ -74,6 +76,19 @@ builder.Services.AddControllers()
     });
 builder.Services.AddSignalR();
 builder.Services.AddOpenApi();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new() { Title = "Planity API", Version = "v1" });
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization header. Example: \"Bearer {token}\"",
+        Name = "Authorization", In = ParameterLocation.Header, Type = SecuritySchemeType.ApiKey
+    });
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        { new OpenApiSecurityScheme { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" } }, Array.Empty<string>() }
+    });
+});
 
 var app = builder.Build();
 
@@ -85,6 +100,8 @@ if (app.Environment.IsDevelopment())
     await DataSeeder.SeedAsync(db);
 
     app.MapOpenApi().WithTags("OpenAPI");
+    app.UseSwagger();
+    app.UseSwaggerUI();
     app.MapScalarApiReference();
 }
 
@@ -93,5 +110,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.MapHub<ChatHub>("/hubs/chat");
+app.MapHub<PlanningHub>("/hubs/planning");
 
 app.Run();

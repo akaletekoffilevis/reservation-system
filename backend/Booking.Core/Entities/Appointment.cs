@@ -21,6 +21,7 @@ public class Appointment
     public string ConcurrencyStamp { get; set; } = Guid.NewGuid().ToString();
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
+    public bool ReminderSent { get; set; }
 
     [JsonIgnore] public Professional Professional { get; set; } = null!;
     [JsonIgnore] public Service Service { get; set; } = null!;

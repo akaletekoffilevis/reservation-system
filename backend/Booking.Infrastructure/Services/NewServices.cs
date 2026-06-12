@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Booking.Core.DTOs;
 using Booking.Core.Entities;
 using Booking.Core.Enums;
@@ -371,17 +372,31 @@ public class AdminService : IAdminService
 public class SmsService : ISmsService
 {
     private readonly IConfiguration _config;
+    private readonly ILogger<SmsService> _logger;
 
-    public SmsService(IConfiguration config) => _config = config;
+    public SmsService(IConfiguration config, ILogger<SmsService> logger)
+    {
+        _config = config;
+        _logger = logger;
+    }
 
     public async Task SendSmsAsync(string phone, string message)
     {
-        // TODO: Implement Twilio integration
-        // var accountSid = _config["Twilio:AccountSid"];
-        // var authToken = _config["Twilio:AuthToken"];
-        // TwilioClient.Init(accountSid, authToken);
-        // await MessageResource.CreateAsync(body: message, from: new PhoneNumber(_config["Twilio:From"]), to: new PhoneNumber(phone));
-        await Task.CompletedTask;
-        Console.WriteLine($"[SMS] To: {phone}, Message: {message}");
+        var accountSid = _config["Twilio:AccountSid"];
+        var authToken = _config["Twilio:AuthToken"];
+        var fromNumber = _config["Twilio:FromNumber"];
+
+        if (string.IsNullOrEmpty(accountSid) || string.IsNullOrEmpty(authToken))
+        {
+            _logger.LogInformation("[SMS] Twilio not configured. Would send to {Phone}: {Message}", phone, message);
+            return;
+        }
+
+        Twilio.TwilioClient.Init(accountSid, authToken);
+        await Twilio.Rest.Api.V2010.Account.MessageResource.CreateAsync(
+            body: message,
+            from: new Twilio.Types.PhoneNumber(fromNumber),
+            to: new Twilio.Types.PhoneNumber(phone)
+        );
     }
 }

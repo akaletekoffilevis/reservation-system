@@ -70,7 +70,7 @@ export default function ManageBookingPage() {
         </div>
 
         {done && (
-          <div className="p-4 bg-green-50 border border-green-200 rounded-lg mb-6 text-green-700 text-sm flex items-center gap-3">
+          <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg mb-6 text-emerald-700 text-sm flex items-center gap-3">
             <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>

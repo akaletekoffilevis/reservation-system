@@ -3,6 +3,8 @@ using Booking.Core.Entities;
 using Booking.Core.Enums;
 using Booking.Core.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
+using Booking.API.Hubs;
 
 namespace Booking.API.Controllers;
 
@@ -13,15 +15,18 @@ public class AppointmentsController : ControllerBase
     private readonly IAppointmentRepository _appointments;
     private readonly IProfessionalRepository _pros;
     private readonly IServiceRepository _services;
+    private readonly IHubContext<PlanningHub> _planningHub;
 
     public AppointmentsController(
         IAppointmentRepository appointments,
         IProfessionalRepository pros,
-        IServiceRepository services)
+        IServiceRepository services,
+        IHubContext<PlanningHub> planningHub)
     {
         _appointments = appointments;
         _pros = pros;
         _services = services;
+        _planningHub = planningHub;
     }
 
     [HttpPost]
@@ -52,6 +57,8 @@ public class AppointmentsController : ControllerBase
         };
 
         appointment = await _appointments.CreateAsync(appointment);
+
+        await PlanningHub.NotifySlotBooked(_planningHub, request.ProfessionalId, request.StartUtc, endUtc);
 
         return Ok(new
         {
@@ -88,7 +95,7 @@ public class AppointmentsController : ControllerBase
     }
 
     [HttpPut("{token}/cancel")]
-    public async Task<ActionResult> Cancel(string token, [FromBody] Booking.Core.DTOs.CancelRequest? request)
+    public async Task<ActionResult> Cancel(string token, CancelRequest? request)
     {
         var appointment = await _appointments.GetByTokenAsync(token);
         if (appointment == null) return NotFound();
@@ -101,11 +108,13 @@ public class AppointmentsController : ControllerBase
         appointment.UpdatedAt = DateTime.UtcNow;
         await _appointments.UpdateAsync(appointment);
 
+        await PlanningHub.NotifySlotFreed(_planningHub, appointment.ProfessionalId, appointment.StartUtc, appointment.EndUtc);
+
         return Ok();
     }
 
     [HttpPut("{token}/reschedule")]
-    public async Task<ActionResult> Reschedule(string token, Booking.Core.DTOs.RescheduleRequest request)
+    public async Task<ActionResult> Reschedule(string token, RescheduleRequest request)
     {
         var appointment = await _appointments.GetByTokenAsync(token);
         if (appointment == null) return NotFound();
@@ -124,13 +133,17 @@ public class AppointmentsController : ControllerBase
         if (!available)
             return Conflict(new { message = "Time slot is not available" });
 
+        var oldStart = appointment.StartUtc;
+        var oldEnd = appointment.EndUtc;
+
         appointment.StartUtc = request.NewStartUtc;
         appointment.EndUtc = endUtc;
         appointment.UpdatedAt = DateTime.UtcNow;
         await _appointments.UpdateAsync(appointment);
 
+        await PlanningHub.NotifySlotFreed(_planningHub, appointment.ProfessionalId, oldStart, oldEnd);
+        await PlanningHub.NotifySlotBooked(_planningHub, appointment.ProfessionalId, request.NewStartUtc, endUtc);
+
         return Ok();
     }
 }
-
-

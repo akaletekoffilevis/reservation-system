@@ -14,7 +14,7 @@ public interface IAuthService
 public interface IEmailService
 {
     Task SendConfirmationAsync(string email, string name, string token);
-    Task SendReminderAsync(string email, string name, DateTime startUtc, string businessName);
+    Task SendReminderAsync(string email, string name, DateTime startUtc, string businessName, string? token = null);
 }
 
 public interface IChatService

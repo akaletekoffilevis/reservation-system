@@ -1,7 +1,34 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import api from '../../services/api';
 import { Card, Badge } from '../../components/ui/Elements';
-import { PageLoader, CardSkeleton } from '../../components/ui/Loading';
+import { CardSkeleton } from '../../components/ui/Loading';
+
+const statCards = [
+  {
+    label: "Aujourd'hui",
+    icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z',
+    bg: 'bg-brand-100',
+    iconColor: 'text-brand-600',
+  },
+  {
+    label: 'En attente',
+    icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+    bg: 'bg-amber-100',
+    iconColor: 'text-amber-600',
+  },
+  {
+    label: 'Total',
+    icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2',
+    bg: 'bg-purple-100',
+    iconColor: 'text-purple-600',
+  },
+];
+
+const statusMap = { Pending: 'warning', Confirmed: 'success', Completed: 'default', Cancelled: 'danger' };
+
+function StatusBadge({ status }) {
+  return <Badge variant={statusMap[status]}>{status}</Badge>;
+}
 
 export default function DashboardHomePage() {
   const [appointments, setAppointments] = useState([]);
@@ -14,49 +41,61 @@ export default function DashboardHomePage() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        {[1,2,3].map(i => <CardSkeleton key={i} />)}
+  const todayStr = useMemo(() => new Date().toDateString(), []);
+
+  const { todayApps, pending, upcoming } = useMemo(() => {
+    const todayApps = appointments.filter(a => new Date(a.startUtc).toDateString() === todayStr);
+    const pending = appointments.filter(a => a.status === 'Pending');
+    const upcoming = appointments
+      .filter(a => a.status !== 'Cancelled' && new Date(a.startUtc) > new Date())
+      .sort((a, b) => new Date(a.startUtc) - new Date(b.startUtc));
+    return { todayApps, pending, upcoming };
+  }, [appointments, todayStr]);
+
+  const formatDate = useCallback((d) =>
+    new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }), []);
+
+  const formatTime = useCallback((d) =>
+    new Date(d).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }), []);
+
+  if (loading) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div>
+          <div className="h-8 w-48 bg-surface-200 rounded-lg animate-pulse" />
+          <div className="h-4 w-64 bg-surface-100 rounded-lg animate-pulse mt-2" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          {[1, 2, 3].map(i => <CardSkeleton key={i} />)}
+        </div>
+        <CardSkeleton />
       </div>
-      <CardSkeleton />
-    </div>
-  );
+    );
+  }
 
-  const today = new Date().toDateString();
-  const todayApps = appointments.filter(a => new Date(a.startUtc).toDateString() === today);
-  const pending = appointments.filter(a => a.status === 'Pending');
-  const upcoming = appointments
-    .filter(a => a.status !== 'Cancelled' && new Date(a.startUtc) > new Date())
-    .sort((a, b) => new Date(a.startUtc) - new Date(b.startUtc));
-
-  const statusBadge = (status) => {
-    const map = { Pending: 'warning', Confirmed: 'success', Completed: 'default', Cancelled: 'danger' };
-    return <Badge variant={map[status]}>{status}</Badge>;
-  };
+  const stats = [
+    { ...statCards[0], value: todayApps.length },
+    { ...statCards[1], value: pending.length },
+    { ...statCards[2], value: appointments.length },
+  ];
 
   return (
     <div className="space-y-8 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Tableau de bord</h1>
-        <p className="text-gray-500 mt-1">Vue d'ensemble de votre activité</p>
+        <h1 className="text-2xl font-bold text-surface-900">Tableau de bord</h1>
+        <p className="text-surface-500 mt-1">Vue d'ensemble de votre activité</p>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        {[
-          { label: "Aujourd'hui", value: todayApps.length, icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z', color: 'text-brand-600 bg-brand-100' },
-          { label: 'En attente', value: pending.length, icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', color: 'text-yellow-600 bg-yellow-100' },
-          { label: 'Total', value: appointments.length, icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', color: 'text-purple-600 bg-purple-100' },
-        ].map((s, i) => (
-          <Card key={i} className="p-6">
+        {stats.map((s, i) => (
+          <Card key={i} className="p-6 card-hover" style={{ animationDelay: `${i * 80}ms` }}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">{s.label}</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">{s.value}</p>
+                <p className="text-sm font-medium text-surface-500">{s.label}</p>
+                <p className="text-3xl font-bold text-surface-900 mt-1.5 tabular-nums">{s.value}</p>
               </div>
-              <div className={`w-12 h-12 rounded-xl ${s.color} flex items-center justify-center`}>
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className={`w-12 h-12 rounded-xl ${s.bg} flex items-center justify-center`}>
+                <svg className={`w-6 h-6 ${s.iconColor}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={s.icon} />
                 </svg>
               </div>
@@ -65,37 +104,49 @@ export default function DashboardHomePage() {
         ))}
       </div>
 
-      {/* Upcoming */}
       <Card className="overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-900">Prochains rendez-vous</h2>
+        <div className="px-6 py-5 border-b border-surface-100">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-surface-900">Prochains rendez-vous</h2>
+            {upcoming.length > 0 && (
+              <span className="text-xs text-surface-400 font-medium">{upcoming.length} à venir</span>
+            )}
+          </div>
         </div>
         {upcoming.length === 0 ? (
-          <div className="p-12 text-center">
-            <p className="text-gray-500">Aucun rendez-vous à venir</p>
+          <div className="flex flex-col items-center justify-center py-16 px-6 animate-fade-in">
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-100">
+              <svg className="h-7 w-7 text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <p className="text-surface-900 font-medium">Aucun rendez-vous à venir</p>
+            <p className="text-surface-400 text-sm mt-1">Les prochaines réservations apparaîtront ici</p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-100">
-            {upcoming.slice(0, 10).map((a) => (
-              <div key={a.id} className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                    <span className="font-semibold text-gray-600">{a.clientName.charAt(0)}</span>
+          <div className="divide-y divide-surface-100">
+            {upcoming.slice(0, 10).map((a, i) => (
+              <div
+                key={a.id}
+                className="flex items-center justify-between px-6 py-4 hover:bg-surface-50 transition-colors duration-150 animate-fade-in"
+                style={{ animationDelay: `${i * 40}ms` }}
+              >
+                <div className="flex items-center gap-4 min-w-0">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shrink-0">
+                    <span className="text-sm font-bold text-white">{a.clientName?.charAt(0) || '?'}</span>
                   </div>
-                  <div>
-                    <p className="font-medium text-gray-900">{a.clientName}</p>
-                    <p className="text-sm text-gray-500">{a.serviceName}</p>
+                  <div className="min-w-0">
+                    <p className="font-medium text-surface-900 truncate">{a.clientName}</p>
+                    <p className="text-sm text-surface-500 truncate">{a.serviceName}</p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-medium text-gray-900">
-                    {new Date(a.startUtc).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
-                  </p>
-                  <p className="text-xs text-gray-400">
-                    {new Date(a.startUtc).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                  </p>
+                <div className="flex items-center gap-6 shrink-0">
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-surface-900">{formatDate(a.startUtc)}</p>
+                    <p className="text-xs text-surface-400">{formatTime(a.startUtc)}</p>
+                  </div>
+                  <StatusBadge status={a.status} />
                 </div>
-                <div>{statusBadge(a.status)}</div>
               </div>
             ))}
           </div>

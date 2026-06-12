@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Booking Mobile",
-    "slug": "booking-mobile",
+    "name": "Planity",
+    "slug": "planity",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -11,13 +11,13 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.booking.mobile"
+      "bundleIdentifier": "com.planity.app"
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#ffffff"
       },
-      "package": "com.booking.mobile"
+      "package": "com.planity.app"
     }
   }
 }

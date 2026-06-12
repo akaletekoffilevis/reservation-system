@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { Button, Card, Badge, EmptyState } from '../../components/ui/Elements';
-import { PageLoader, ListSkeleton } from '../../components/ui/Loading';
+import { PageLoader } from '../../components/ui/Loading';
+
+const statusColors = {
+  true: 'success',
+  false: 'danger',
+};
 
 export default function AdminProfessionalsPage() {
   const [pros, setPros] = useState([]);
@@ -25,42 +30,55 @@ export default function AdminProfessionalsPage() {
   if (loading) return <PageLoader />;
 
   return (
-    <div className="p-6 animate-fade-in">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Gestion des professionnels</h1>
-          <p className="text-gray-500 mt-1">{pros.length} professionnels inscrits</p>
-        </div>
+    <div className="p-6 lg:p-8 animate-fade-in max-w-7xl mx-auto">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-surface-900">Gestion des professionnels</h1>
+        <p className="text-surface-500 mt-1">{pros.length} professionnel{pros.length !== 1 ? 's' : ''} inscrit{pros.length !== 1 ? 's' : ''}</p>
       </div>
 
       {pros.length === 0 ? (
-        <EmptyState title="Aucun professionnel" description="Aucun professionnel n'est encore inscrit sur la plateforme." />
+        <EmptyState
+          icon={
+            <svg className="w-8 h-8 text-surface-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          }
+          title="Aucun professionnel"
+          description="Aucun professionnel n'est encore inscrit sur la plateforme."
+        />
       ) : (
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Nom</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Ville</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Email</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase">Statut</th>
-                  <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase">Action</th>
+              <thead>
+                <tr className="border-b border-surface-200 bg-surface-50/50">
+                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-surface-500 uppercase tracking-wider">Nom</th>
+                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-surface-500 uppercase tracking-wider">Ville</th>
+                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-surface-500 uppercase tracking-wider">Email</th>
+                  <th className="text-left px-5 py-3.5 text-xs font-semibold text-surface-500 uppercase tracking-wider">Statut</th>
+                  <th className="text-right px-5 py-3.5 text-xs font-semibold text-surface-500 uppercase tracking-wider">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className="divide-y divide-surface-100">
                 {pros.map(pro => (
-                  <tr key={pro.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-4 font-medium">{pro.businessName}</td>
-                    <td className="px-4 py-4 text-gray-600">{pro.city || '—'}</td>
-                    <td className="px-4 py-4 text-gray-600 text-sm">{pro.email || '—'}</td>
-                    <td className="px-4 py-4">
-                      <Badge variant={pro.isActive ? 'success' : 'danger'}>{pro.isActive ? 'Actif' : 'Suspendu'}</Badge>
+                  <tr key={pro.id} className="hover:bg-surface-50/50 transition-colors duration-150">
+                    <td className="px-5 py-4">
+                      <span className="font-medium text-surface-900">{pro.businessName}</span>
                     </td>
-                    <td className="px-4 py-4 text-right">
-                      <Button variant={pro.isActive ? 'danger' : 'success'} size="sm"
+                    <td className="px-5 py-4 text-surface-500">{pro.city || '—'}</td>
+                    <td className="px-5 py-4 text-surface-500 text-sm">{pro.email || '—'}</td>
+                    <td className="px-5 py-4">
+                      <Badge variant={statusColors[pro.isActive]}>
+                        {pro.isActive ? 'Actif' : 'Suspendu'}
+                      </Badge>
+                    </td>
+                    <td className="px-5 py-4 text-right">
+                      <Button
+                        variant={pro.isActive ? 'danger' : 'success'}
+                        size="sm"
                         loading={toggling === pro.id}
-                        onClick={() => toggle(pro.id, pro.isActive)}>
+                        onClick={() => toggle(pro.id, pro.isActive)}
+                      >
                         {pro.isActive ? 'Suspendre' : 'Activer'}
                       </Button>
                     </td>
